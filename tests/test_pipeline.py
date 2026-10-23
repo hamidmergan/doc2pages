@@ -145,3 +145,22 @@ def test_an_empty_file_is_refused(server, tmp_path: Path):
     with pytest.raises(Exception) as e:
         make_pages([empty], base_url=server.base_url, model="your-model")
     assert "empty" in str(e.value)
+
+
+def test_the_concurrency_setting_limits_the_calls_of_a_run(monkeypatch, server, material,
+                                                           tmp_path):
+    """Every stage that runs calls side by side asks for the number the user set."""
+    from doc2pages import concurrency, pipeline
+    from doc2pages.cli import main
+
+    asked: list[int] = []
+    real = concurrency.run_limited
+
+    async def watched(jobs, at_once, **rest):
+        asked.append(at_once)
+        return await real(jobs, at_once, **rest)
+
+    monkeypatch.setattr(pipeline.concurrency, "run_limited", watched)
+    assert main([str(material), "-o", str(tmp_path / "out"), "--base-url", server.base_url,
+                 "--model", "your-model", "--concurrency", "1", "--quiet"]) == 0
+    assert asked and set(asked) == {1}

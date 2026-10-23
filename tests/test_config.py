@@ -66,3 +66,13 @@ def test_a_window_too_small_is_refused_up_front():
 def test_a_limit_must_be_greater_than_zero():
     with pytest.raises(ConfigError):
         resolve(base_url="http://a/v1", model="m", max_files=0)
+
+
+def test_the_concurrency_setting_reaches_the_caller(monkeypatch):
+    from doc2pages.client import make_caller
+
+    monkeypatch.setenv("DOC2PAGES_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("DOC2PAGES_MODEL", "your-model")
+    monkeypatch.setenv("DOC2PAGES_CONCURRENCY", "1")
+    assert make_caller(resolve()).at_once == 1
+    assert make_caller(resolve(concurrency=5)).at_once == 5

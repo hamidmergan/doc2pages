@@ -23,7 +23,6 @@ from .limits import (
     PAGES_SECTIONS,
     SUMMARY_SECTION_GROUP_CHARS,
     SUMMARY_SOURCE_OPENING_CHARS,
-    SUMMARY_WRITE_CONCURRENCY,
 )
 from .log import logger
 from .models import LANGUAGE_FALLBACK, Outline
@@ -179,7 +178,7 @@ async def _basis(caller: Caller, text_map: tm.TextMap, language: str,
         results = await concurrency.run_limited(
             [lambda i=i, stretch=stretch, count=count: one(i, stretch, count)
              for i, (stretch, count) in enumerate(stretches) if str(i) not in done],
-            SUMMARY_WRITE_CONCURRENCY, may_start=may)
+            caller.at_once, may_start=may)
         if any(e is concurrency.SKIPPED for e in results):
             raise PipelineInterrupted
         answers = [done.get(str(i)) for i in range(len(stretches))]
@@ -365,7 +364,7 @@ async def _blocks(caller: Caller, *, language: str, plan: Outline, text_map: tm.
     may = (lambda: not should_stop()) if should_stop else None
     store.progress("section", len(done), len(plan.sections))
     results = await concurrency.run_limited([lambda g=g: blocks_of(g) for g in open_groups],
-                                            SUMMARY_WRITE_CONCURRENCY, may_start=may)
+                                            caller.at_once, may_start=may)
     if any(e is concurrency.SKIPPED for e in results):
         raise PipelineInterrupted
 

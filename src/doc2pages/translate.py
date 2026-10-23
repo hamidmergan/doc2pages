@@ -31,6 +31,7 @@ LANGUAGES: dict[str, dict] = {
 # Fields that are no text a reader sees, they stay as they are.
 _KEEP = {"src", "prompt", "kind", "id", "icon", "to", "chart_type", "layout", "saved_at", "lang",
          "design", "version", "hidden", "hero", "cols", "max", "pos", "tone", "heading"}
+# Two batches at a time, and never more than the run as a whole is allowed.
 _CONCURRENCY = 2
 # A busy provider answers 429 or 5xx, each call tries again after these waits in seconds.
 _WAITS = (3, 8, 20, 45)
@@ -175,7 +176,7 @@ async def translate(caller: Caller, page: dict, key: str) -> dict:
     target = LANGUAGES[key]
     system = _SYSTEM.format(target=target["name"])
     fresh = json.loads(json.dumps(page))
-    gate = asyncio.Semaphore(_CONCURRENCY)
+    gate = asyncio.Semaphore(max(1, min(_CONCURRENCY, caller.at_once)))
     missing = 0
 
     async def one(batch: list[tuple[tuple, str]]) -> None:

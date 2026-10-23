@@ -82,6 +82,8 @@ class Caller:
     # The window of this model, 0 when it is not known.
     window_tokens: int = 0
     timeout: float = limits.SUMMARY_CALL_TIMEOUT_SECONDS
+    # How many calls of this run may be on their way at the same time.
+    at_once: int = limits.SUMMARY_WRITE_CONCURRENCY
     # Probed once per run instead of again on every call.
     json_mode: bool = True
     calls: list = field(default_factory=list)
@@ -113,7 +115,7 @@ def make_caller(settings: Settings) -> Caller:
     client = AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key,
                          timeout=settings.timeout, max_retries=0)
     return Caller(client=client, model=settings.model, window_tokens=settings.context_tokens,
-                  timeout=settings.timeout)
+                  timeout=settings.timeout, at_once=settings.concurrency)
 
 
 # --- Pictures -------------------------------------------------------------------------------
