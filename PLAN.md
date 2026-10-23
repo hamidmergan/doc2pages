@@ -131,9 +131,12 @@ Carried from the original and kept, because nothing a user does goes wrong with 
   three page PDF each went through the command line and through the web page, once with
   `--translate de`, once with `--combine` and once with an instruction. The pages carry the
   expected frame, the blocks keep to the schema and the HTML parses with no unclosed tag.
-  A title picture could not be tried, the model server has no drawing model.
-- The image was built and started, and the page, its files and `/api/info` were checked
-  in the container. A full run inside the container still needs a reachable model.
+- The title picture was drawn by a real image model: `--images` wrote `img_0.webp`
+  (1536 x 656, WEBP) next to the page, and the run reported "images 0/1" and "images 1/1"
+  on its way there.
+- The image was built and started, and a whole run was made inside the container against a
+  real model: upload, create, status, the finished page and the ZIP with four files. An
+  unknown Host is refused with 400 there too, although the server listens on every interface.
 - The mind map was checked again after the review: a page with four centre words, among them
   three long German compounds, was rendered and looked at in a browser at 1200 px. Every
   centre label now stays inside its circle, and a test asserts the size that is drawn rather
