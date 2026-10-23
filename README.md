@@ -72,6 +72,53 @@ doc2pages chapter.pdf -o pages/ --markdown-only --base-url http://localhost:1143
 
 Errors appear on stderr. The exit code is 1 when the run failed.
 
+### Web UI
+
+```bash
+pip install "doc2pages[ui]"
+doc2pages serve
+```
+
+Then open http://127.0.0.1:8000. Drop your material on the page, add an instruction if you
+want one, pick the language and whether a title picture is drawn, and press Create page. The
+finished page is shown right there, opens in a new tab and downloads as a ZIP with the HTML,
+the Markdown, the JSON and the pictures.
+
+The settings come from the `DOC2PAGES_*` environment variables. When no model is set, the page
+asks for `base_url`, `model` and an optional `api_key` itself:
+
+```bash
+DOC2PAGES_BASE_URL=http://localhost:11434/v1 DOC2PAGES_MODEL=your-model doc2pages serve
+```
+
+The page is in English and German and switches with the two buttons in the header. It listens
+on this computer only. With `--host 0.0.0.0` it is reachable from your network, but it has no
+login, so do not expose it to the internet. Uploads and results live in a temporary folder and
+go away when the server stops.
+
+### Docker
+
+The image runs the web UI on port 8000:
+
+```bash
+docker compose up
+```
+
+Or without compose:
+
+```bash
+docker build -t doc2pages .
+docker run -p 127.0.0.1:8000:8000 \
+  -e DOC2PAGES_BASE_URL=http://host.docker.internal:11434/v1 \
+  -e DOC2PAGES_MODEL=your-model \
+  doc2pages
+```
+
+Then open http://127.0.0.1:8000. `host.docker.internal` reaches a model server such as Ollama
+on the same computer (on Linux, add `--add-host=host.docker.internal:host-gateway`).
+`docker-compose.yml` lists every setting the container understands, so you can put them in a
+`.env` file next to it. The page has no login, so do not expose the port to the internet.
+
 ### Python API
 
 ```python

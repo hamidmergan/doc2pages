@@ -122,6 +122,24 @@ def make_caller(settings: Settings) -> Caller:
 _FALLBACK_SIZE = "1024x1024"
 
 
+def _fetch(url: str, timeout: float) -> bytes:
+    """The bytes behind a URL, with whichever HTTP library is installed.
+
+    Newer releases of the openai package bring the client as ``httpx2``, older ones
+    as ``httpx``. If neither is there, the standard library does the one GET.
+    """
+    for name in ("httpx", "httpx2"):
+        try:
+            module = __import__(name)
+        except ImportError:
+            continue
+        return module.get(url, timeout=timeout).content
+    from urllib.request import urlopen
+
+    with urlopen(url, timeout=timeout) as answer:  # noqa: S310 - the URL comes from the server
+        return answer.read()
+
+
 def draw_image(settings: Settings, prompt: str, size: str) -> bytes:
     """One picture as image bytes, the square size as a fallback when the server refuses ours."""
     from openai import BadRequestError, OpenAI
@@ -144,9 +162,7 @@ def draw_image(settings: Settings, prompt: str, size: str) -> bytes:
     if getattr(entry, "b64_json", None):
         return base64.b64decode(entry.b64_json)
     if getattr(entry, "url", None):
-        import httpx
-
-        return httpx.get(entry.url, timeout=settings.timeout).content
+        return _fetch(entry.url, settings.timeout)
     raise ModelError("The image server answered without picture data.")
 
 

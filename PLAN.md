@@ -60,10 +60,14 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
 - [x] 4 Tests with a fake server: structure, translation, images, HTML, CLI, configuration
 - [x] 5 README, CHANGELOG 0.1.0, local smoke test with a real model
 - [x] 6 English sweep, acceptance greps, final commit
-- [ ] 7 Web UI (`doc2pages serve`) and Docker (`Dockerfile`, `docker-compose.yml`)
+- [x] 7 Web UI (`doc2pages serve`) and Docker (`Dockerfile`, `docker-compose.yml`)
 
 ## Open
 
 - The run against a real model could not be made: the test endpoint answers 401 on
   chat completions, only its model list is open. Everything else was checked against the
   fake model server.
+- The web UI holds one run at a time and keeps it in memory. A second browser sees the
+  same run. That is enough for one person on one machine, which is what the tool is for.
+- The image was built and started, and the page, its files and `/api/info` were checked
+  in the container. A full run inside the container still needs a reachable model.

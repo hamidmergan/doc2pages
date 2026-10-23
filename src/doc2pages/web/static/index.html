@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>doc2pages</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1 data-t="title">Pages</h1>
+    <div class="spacer"></div>
+    <span id="model" class="muted"></span>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" class="lang on" data-lang="en">EN</button>
+      <button type="button" class="lang" data-lang="de">DE</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="intro muted" data-t="intro"></p>
+
+    <section class="card">
+      <h2 data-t="filesTitle">Files</h2>
+      <label id="drop" class="drop">
+        <input type="file" id="files" multiple hidden>
+        <strong data-t="dropHere">Drop your material here</strong>
+        <span class="muted" id="formats"></span>
+      </label>
+      <ul id="chosen" class="chosen"></ul>
+      <p id="uploadError" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card">
+      <h2 data-t="optionsTitle">Options</h2>
+      <label class="field">
+        <span data-t="instructionsLabel">Instruction, optional</span>
+        <textarea id="instructions" rows="2"></textarea>
+      </label>
+      <label class="field">
+        <span data-t="imageStyleLabel">Instruction for pictures</span>
+        <textarea id="imageStyle" rows="2"></textarea>
+        <small class="muted" data-t="imageStyleHint"></small>
+      </label>
+      <div class="row">
+        <label class="field small">
+          <span data-t="languageLabel">Language of the page</span>
+          <select id="language">
+            <option value="" data-t="languageAuto">From the material</option>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <label class="field small">
+          <span data-t="translateLabel">Also in</span>
+          <select id="translateTo">
+            <option value="" data-t="translateOff">No second language</option>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="images"> <span data-t="imagesLabel">Draw the title picture</span></label>
+        <label class="check"><input type="checkbox" id="combine"> <span data-t="combineLabel">One page out of all files</span></label>
+      </div>
+    </section>
+
+    <section class="card" id="modelCard" hidden>
+      <h2 data-t="modelTitle">Model</h2>
+      <p class="muted" data-t="modelHint"></p>
+      <div class="row">
+        <label class="field small"><span>base_url</span>
+          <input type="text" id="baseUrl" placeholder="http://localhost:11434/v1"></label>
+        <label class="field small"><span>model</span>
+          <input type="text" id="modelName" placeholder="your-model"></label>
+        <label class="field small"><span>api_key</span>
+          <input type="password" id="apiKey" autocomplete="off"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <button type="button" id="submit" class="primary" data-t="submit">Create page</button>
+      <p id="status" class="muted" aria-live="polite"></p>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="result" hidden>
+      <h2 data-t="resultTitle">The page</h2>
+      <div class="row">
+        <select id="pick"></select>
+        <a id="open" class="button" target="_blank" rel="noopener" data-t="openTab">Open in a new tab</a>
+        <a id="download" class="button" href="/api/download" data-t="download">Download as ZIP</a>
+      </div>
+      <iframe id="view" title="Page"></iframe>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

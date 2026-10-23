@@ -1,0 +1,30 @@
+services:
+  doc2pages:
+    build: .
+    image: doc2pages
+    ports:
+      - "8000:8000"
+    environment:
+      # The chat model that writes the page. Both are required.
+      DOC2PAGES_BASE_URL: "${DOC2PAGES_BASE_URL:-http://localhost:11434/v1}"
+      DOC2PAGES_MODEL: "${DOC2PAGES_MODEL:-your-model}"
+      # Optional, local servers do not need a key.
+      DOC2PAGES_API_KEY: "${DOC2PAGES_API_KEY:-}"
+      # The image model, each setting falls back to the chat value.
+      DOC2PAGES_IMAGE_BASE_URL: "${DOC2PAGES_IMAGE_BASE_URL:-}"
+      DOC2PAGES_IMAGE_MODEL: "${DOC2PAGES_IMAGE_MODEL:-}"
+      DOC2PAGES_IMAGE_API_KEY: "${DOC2PAGES_IMAGE_API_KEY:-}"
+      # The page itself.
+      DOC2PAGES_LANGUAGE: "${DOC2PAGES_LANGUAGE:-}"
+      DOC2PAGES_TRANSLATE_TO: "${DOC2PAGES_TRANSLATE_TO:-}"
+      DOC2PAGES_IMAGES: "${DOC2PAGES_IMAGES:-0}"
+      DOC2PAGES_IMAGE_STYLE: "${DOC2PAGES_IMAGE_STYLE:-}"
+      DOC2PAGES_INSTRUCTIONS: "${DOC2PAGES_INSTRUCTIONS:-}"
+      DOC2PAGES_CONTEXT_TOKENS: "${DOC2PAGES_CONTEXT_TOKENS:-}"
+      # Limits.
+      DOC2PAGES_MAX_FILES: "${DOC2PAGES_MAX_FILES:-10}"
+      DOC2PAGES_MAX_FILE_MB: "${DOC2PAGES_MAX_FILE_MB:-500}"
+      DOC2PAGES_MAX_PAGES: "${DOC2PAGES_MAX_PAGES:-200}"
+      DOC2PAGES_MAX_CHARS: "${DOC2PAGES_MAX_CHARS:-500000}"
+      DOC2PAGES_CONCURRENCY: "${DOC2PAGES_CONCURRENCY:-3}"
+      DOC2PAGES_TIMEOUT: "${DOC2PAGES_TIMEOUT:-270}"

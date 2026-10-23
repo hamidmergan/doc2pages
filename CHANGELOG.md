@@ -17,5 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Output per page: a standalone `index.html` with its CSS inside it, `page.md`, `page.json`
   and the pictures, plus an overview `index.html` that lists every page.
 - Library API `make_pages` and the command line `doc2pages`.
+- Web UI `doc2pages serve`: one page in English and German that takes the material, shows the
+  finished page and hands it over as a ZIP. Host and origin guard, no login.
+- `Dockerfile` and `docker-compose.yml`, so `docker compose up` serves the page on port 8000.
 - Settings through arguments, flags or `DOC2PAGES_*` environment variables, for any
   OpenAI-compatible server.
