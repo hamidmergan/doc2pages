@@ -209,11 +209,19 @@ _MM_CENTER_MIN_SIZE = 9.0
 
 
 def _mm_label(text: str, limit: int) -> str:
-    """A label short enough for a pill, cut between words and marked when it was cut."""
+    """A label short enough for a pill, cut between words and marked when it was cut.
+
+    A cut between words that keeps less than half the room throws away too much. Two words
+    with a long second one, "Grundlagen Versionsverwaltung", would come out as "Grundlagen",
+    so in that case the second word is cut instead of dropped.
+    """
     text = " ".join(text.split())
     if len(text) <= limit:
         return text
-    return (text[:limit - 1].rsplit(" ", 1)[0] or text[:limit - 1]) + "…"
+    whole_words = text[:limit - 1].rsplit(" ", 1)[0]
+    if len(whole_words) * 2 < limit:
+        whole_words = ""
+    return (whole_words or text[:limit - 1]) + "…"
 
 
 def _mm_center_lines(text: str) -> tuple[list[str], float]:

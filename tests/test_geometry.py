@@ -75,6 +75,10 @@ def test_a_mind_map_label_is_cut_between_words_and_says_so():
     # A single word without a space is cut inside the word, still within the limit.
     single = _mm_label("Konfigurationsmanagementsystem", 18)
     assert len(single) == 18 and single.endswith("…")
+    # A cut between words that would keep less than half the room cuts the word instead.
+    pair = _mm_label("Grundlagen Versionsverwaltung", 28)
+    assert pair == "Grundlagen Versionsverwaltu…"
+    assert len(pair) <= 28
 
 
 def test_the_centre_label_really_is_drawn_at_the_size_that_fits():
