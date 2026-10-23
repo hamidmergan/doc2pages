@@ -47,7 +47,8 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
   `markdown` package is not needed.
 - Source code is copied from the original service with mechanical English renames of
   identifiers only. Logic, prompts, limits and output formats stay byte for byte, the
-  original tests are carried with the same renames.
+  original tests are carried with the same renames. Where this tool knowingly steps away
+  from that, the reason is written down under "Deliberate deviations from the source".
 - The model's context window is unknown to the tool. Without `context_tokens` it assumes
   131072 tokens, the same assumption the original makes for an unmeasured model.
 
@@ -61,6 +62,68 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
 - [x] 5 README, CHANGELOG 0.1.0, local smoke test with a real model
 - [x] 6 English sweep, acceptance greps, final commit
 - [x] 7 Web UI (`doc2pages serve`) and Docker (`Dockerfile`, `docker-compose.yml`)
+- [x] 8 Review fixes: the findings of the code review, with tests that can see them
+
+## Deliberate deviations from the source
+
+Everything else follows the original service line by line. These points do not, each for a
+reason that a user of this tool would notice.
+
+- Two prompt strings name what is being made. The original says "a written summary" in the
+  topic call and in the instruction classification, because its pages tool reuses the summary
+  pipeline. This tool writes a learning web page and says so in both places
+  (`pipeline.py:171,205`), which is what every other prompt in the package already says.
+- A model refusal (401, 403, 404) reaches the user as one sentence naming `--api-key`,
+  `--model` and `--base-url`. In the original a web route turned the exception into a message,
+  there is no route here, so `cli.main` does it (`cli.py`).
+- "no outline" was an internal marker in the original, replaced by a message in its frontend.
+  Here the sentence says what to check (`pipeline.py:418`).
+- `concurrency` limits the calls of a run. The original pins its stages to a module constant
+  and takes the number from a server setting the tool does not have.
+- The picture stage reports its progress, so the web UI shows the step it has for it. The
+  original reports it from its task queue, which this tool has no counterpart for.
+- The mind map branches link to their sections, which the original does in its frontend.
+- The drawings carry their own geometry: a pill is as wide as its label, a label too long is
+  cut between words, the centre word is broken and shrunk until it fits the circle, and a
+  single long word in the word cloud is shrunk instead of running out of the picture. The
+  original draws in the browser, where the layout engine does this.
+- `_fetch` tries `httpx2` before `httpx`, follows redirects and raises on a 4xx or 5xx answer.
+  All three ways through it behave the same, so the way the tests take is the way an install
+  of this package takes.
+- The keyword of a quote is marked in the raw text and escaped afterwards. Marking it in the
+  escaped text hits inside an entity, so "amp" marked the middle of an "&".
+- `--no-images` switches the title picture off for one run, even when the environment turned
+  it on. The original decides per job and never had a flag to contradict.
+- The Host header check stays on when the server listens on every interface, and
+  `docker-compose.yml` publishes the port on `127.0.0.1` only. `--allowed-hosts` names the
+  hosts for a run behind a proxy.
+- Markdown is decoded with `errors="replace"`, like the other text readers. The original lets
+  a file in an older encoding fail.
+- A page folder is cleared of the files of an earlier page before it is written, so a run with
+  fewer pictures does not leave the old ones behind. Only `index.html`, `page.md`, `page.json`
+  and `img_<n>.webp` are touched.
+- A translation into the language the page already has says in the log that the other language
+  is written instead.
+
+## Known properties
+
+Carried from the original and kept, because nothing a user does goes wrong with them.
+
+- `--translate de` on German material writes the English page, because a page knows only its
+  own language and the other one. The log says so.
+- A title with no Latin letters gives a folder name with no information, `page-1` and so on.
+  The overview still shows the real title, and two equal names never collide.
+- A second run into an output folder leaves whole page folders of a run whose titles slugged
+  differently. The new overview does not list them.
+- The schema carries `layout` and `heading` on a section, and `LAYOUTS` with them. The HTML
+  writer ignores both, because v0.1 has no editor that could set them.
+- `Basis` is the record a planning call reads. The word is read as the English noun here.
+- `schema.py:51` keeps German examples in a comment, because they are the date forms the
+  regular expression below it matches.
+- The reading time line says "Made with AI on <date>". It is carried from the original and
+  belongs to the page the tool writes.
+- The web UI holds one run at a time and keeps it in memory. A second browser sees the same
+  run, which is what one person on one machine needs.
 
 ## Open
 
@@ -69,7 +132,12 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
   `--translate de`, once with `--combine` and once with an instruction. The pages carry the
   expected frame, the blocks keep to the schema and the HTML parses with no unclosed tag.
   A title picture could not be tried, the model server has no drawing model.
-- The web UI holds one run at a time and keeps it in memory. A second browser sees the
-  same run. That is enough for one person on one machine, which is what the tool is for.
 - The image was built and started, and the page, its files and `/api/info` were checked
   in the container. A full run inside the container still needs a reachable model.
+- The mind map was checked again after the review: a page with four centre words, among them
+  three long German compounds, was rendered and looked at in a browser at 1200 px. Every
+  centre label now stays inside its circle, and a test asserts the size that is drawn rather
+  than the attribute that is written.
+- The readers now run in the suite against real PDF, DOCX, PPTX, SRT and VTT files, so the
+  header and footer detection is exercised. The drawings are measured, not just checked for
+  being a non-empty string.

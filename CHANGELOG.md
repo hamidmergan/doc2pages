@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Library API `make_pages` and the command line `doc2pages`.
 - Web UI `doc2pages serve`: one page in English and German that takes the material, shows the
   finished page and hands it over as a ZIP. Host and origin guard, no login.
-- `Dockerfile` and `docker-compose.yml`, so `docker compose up` serves the page on port 8000.
+- `Dockerfile` and `docker-compose.yml`, so `docker compose up` serves the page on port 8000,
+  published on `127.0.0.1` only and with the Host header check still on.
+- `--no-images` to switch the title picture off for one run, and `--allowed-hosts` to name the
+  Host header names the web UI accepts.
 - Settings through arguments, flags or `DOC2PAGES_*` environment variables, for any
   OpenAI-compatible server.
