@@ -6,6 +6,7 @@ import json
 import os
 import re
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
@@ -103,6 +104,8 @@ class FakeServer:
         self.images = []
         self.fail_images = False
         self.status = 200
+        # Seconds every answer waits, so a test can watch a run while it is going.
+        self.delay = 0.0
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -118,6 +121,8 @@ class FakeServer:
                 self.wfile.write(data)
 
             def do_POST(self):
+                if outer.delay:
+                    time.sleep(outer.delay)
                 length = int(self.headers.get("Content-Length", 0))
                 body = json.loads(self.rfile.read(length))
                 outer.requests.append({"path": self.path, "body": body,

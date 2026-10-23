@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from doc2pages.web.app import create_app  # noqa: E402
+from doc2pages.web.app import STEPS, create_app  # noqa: E402
 
 
 def wait(client, seconds: float = 60.0) -> dict:
@@ -195,3 +195,37 @@ def test_a_too_large_upload_is_refused_before_it_is_read(monkeypatch, server):
         answer = client.post("/api/upload",
                              files={"files": ("big.txt", b"x" * (3 * 1024 * 1024), "text/plain")})
     assert answer.status_code == 413
+
+
+def test_a_second_browser_sees_the_run_that_is_going_and_its_result(server, material):
+    """A reload or a second tab is a second client against the same server.
+
+    The run lives on the server, not in the page, so the second client has to find the
+    uploaded files, the step of the run that is going and the finished page.
+    """
+    app = create_app(allowed_hosts={"testserver", "localhost", "127.0.0.1"})
+    # Every model answer waits a moment, so the run is still going when the second client asks.
+    server.delay = 0.3
+    with TestClient(app) as first:
+        second = TestClient(app)
+        first.post("/api/upload",
+                   files={"files": (material.name, material.read_bytes(), "text/plain")})
+        started = first.post("/api/create", json=settings_of(server))
+        assert started.json()["state"] == "running"
+
+        # The second client knows nothing of the first one and still finds everything.
+        info = second.get("/api/info").json()
+        assert info["files"] == [material.name]
+        status = second.get("/api/status").json()
+        assert status["state"] == "running"
+        assert status["step"] in STEPS
+
+        # A second run while the first is going is refused, from either client.
+        assert second.post("/api/create", json=settings_of(server)).status_code == 409
+        assert second.post("/api/upload", files={
+            "files": (material.name, material.read_bytes(), "text/plain")}).status_code == 409
+
+        done = wait(second)
+        assert done["state"] == "done", done["error"]
+        assert second.get("/api/page/0").status_code == 200
+        assert first.get("/api/status").json()["state"] == "done"
