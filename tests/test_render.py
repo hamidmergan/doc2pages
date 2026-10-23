@@ -136,3 +136,37 @@ def test_markdown_only_writes_no_html(tmp_path: Path):
     assert not (folder / "index.html").exists()
     assert not (folder / "img_0.webp").exists()
     assert not (tmp_path / "index.html").exists()
+
+
+def test_the_html_is_well_formed():
+    """Every tag that opens also closes, read back with the standard parser."""
+    from html.parser import HTMLParser
+
+    void = {"meta", "img", "br", "hr", "input", "link", "source", "path", "circle", "rect",
+            "line", "text", "use"}
+
+    class Reader(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.open: list[str] = []
+            self.bad: list[str] = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag not in void:
+                self.open.append(tag)
+
+        def handle_endtag(self, tag):
+            if tag in void:
+                return
+            if not self.open or self.open[-1] != tag:
+                self.bad.append(f"{tag} closes {self.open[-1] if self.open else 'nothing'}")
+                return
+            self.open.pop()
+
+        def handle_startendtag(self, tag, attrs):
+            pass
+
+    reader = Reader()
+    reader.feed(page_html(_page_with_all_blocks()))
+    assert reader.bad == []
+    assert reader.open == []
