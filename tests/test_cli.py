@@ -64,3 +64,24 @@ def test_the_parser_knows_the_two_page_languages():
     assert args.language == "de" and args.translate_to == "en"
     with pytest.raises(SystemExit):
         parser.parse_args(["a.pdf", "--language", "fr"])
+
+
+def test_a_rejected_key_ends_with_a_sentence_and_code_one(server, material, tmp_path, capsys):
+    """A 401 from the server must not reach the user as a Python traceback."""
+    server.status = 401
+    code = main([str(material), "-o", str(tmp_path / "out"), "--base-url", server.base_url,
+                 "--model", "your-model", "--api-key", "wrong", "--quiet"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert err.startswith("doc2pages: ")
+    assert "Traceback" not in err
+    assert "--api-key" in err
+
+
+def test_an_unknown_model_ends_with_a_sentence_and_code_one(server, material, tmp_path, capsys):
+    server.status = 404
+    code = main([str(material), "-o", str(tmp_path / "out"), "--base-url", server.base_url,
+                 "--model", "no-such-model", "--quiet"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert err.startswith("doc2pages: ") and "--model" in err

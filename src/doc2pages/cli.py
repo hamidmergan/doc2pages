@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .api import make_pages
+from .client import is_provider_refusal
 from .config import ENV_PREFIX, LANGUAGES
 from .errors import Doc2PagesError
 from .source_reading import EXTENSIONS
@@ -84,8 +85,18 @@ def _report(step: str, part: int | None, total: int | None) -> None:
         print(f"{step} {part}/{total}", file=sys.stderr)
 
 
+def _message(e: BaseException) -> str:
+    """What the user reads instead of a traceback when a call went wrong."""
+    if is_provider_refusal(e):
+        return (f"the model server turned the request down ({e}). "
+                "Check --api-key, --model and --base-url.")
+    return str(e) or e.__class__.__name__
+
+
 def _serve(args) -> int:
     try:
+        import uvicorn  # noqa: F401 - serve() needs it, the hint below beats a traceback
+
         from .web.app import serve
     except ImportError:
         print("The web UI needs the extra dependencies: pip install 'doc2pages[ui]'",
@@ -128,6 +139,9 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print(f"{PROGRAM}: stopped", file=sys.stderr)
         return 130
+    except Exception as e:  # noqa: BLE001 - a rejected key gets a sentence, not a traceback
+        print(f"{PROGRAM}: {_message(e)}", file=sys.stderr)
+        return 1
     for page in pages:
         print(page.folder if page.folder else page.title)
     return 0
