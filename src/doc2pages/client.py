@@ -124,22 +124,38 @@ def make_caller(settings: Settings) -> Caller:
 _FALLBACK_SIZE = "1024x1024"
 
 
+# Newer releases of the openai package bring the HTTP client as httpx2, older ones as httpx.
+# httpx2 comes first, because that is the one an install of this package pulls in.
+_HTTP_LIBRARIES = ("httpx2", "httpx")
+
+
+def _http_library():
+    """The HTTP library this installation has, or None for the standard library."""
+    for name in _HTTP_LIBRARIES:
+        try:
+            return __import__(name)
+        except ImportError:
+            continue
+    return None
+
+
 def _fetch(url: str, timeout: float) -> bytes:
     """The bytes behind a URL, with whichever HTTP library is installed.
 
-    Newer releases of the openai package bring the client as ``httpx2``, older ones
-    as ``httpx``. If neither is there, the standard library does the one GET.
+    All three ways behave the same: they follow a redirect, which image URLs of S3 and
+    most content networks need, and they raise on a 4xx or 5xx answer instead of handing
+    an error page on as if it were a picture.
     """
-    for name in ("httpx", "httpx2"):
-        try:
-            module = __import__(name)
-        except ImportError:
-            continue
-        return module.get(url, timeout=timeout).content
-    from urllib.request import urlopen
+    library = _http_library()
+    if library is None:
+        from urllib.request import urlopen
 
-    with urlopen(url, timeout=timeout) as answer:  # noqa: S310 - the URL comes from the server
-        return answer.read()
+        # urlopen follows redirects and raises HTTPError on an error status.
+        with urlopen(url, timeout=timeout) as answer:  # noqa: S310 - the URL comes from the server
+            return answer.read()
+    answer = library.get(url, timeout=timeout, follow_redirects=True)
+    answer.raise_for_status()
+    return answer.content
 
 
 def draw_image(settings: Settings, prompt: str, size: str) -> bytes:
