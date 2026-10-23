@@ -105,12 +105,12 @@ svg .s1 { stroke: var(--pg-amber); }
 svg .bar { fill: var(--pg-fill); }
 svg .dot { fill: var(--pg-cell); stroke: var(--pg-fill); }
 svg .mm-edge { stroke: var(--pg-soft); fill: none; }
-svg .mm-leaf-dot { fill: var(--pg-accent); }
-svg .mm-leaf { fill: var(--pg-ink); font-family: inherit; font-size: 12px; }
 svg .mm-node { fill: var(--pg-cell); stroke: var(--pg-fill); }
 svg .mm-node-text { fill: var(--pg-ink); font-family: inherit; font-weight: 700; font-size: 13px; }
+svg a { cursor: pointer; }
+svg a:hover .mm-node { stroke: var(--pg-accent); }
 svg .mm-center { fill: var(--pg-fill); }
-svg .mm-center-text { fill: #fff; font-family: inherit; font-weight: 800; font-size: 15px; }
+svg .mm-center-text { fill: #fff; font-family: inherit; font-weight: 800; }
 svg .cw { font-family: inherit; }
 svg .cw0 { fill: var(--pg-accent); font-weight: 800; }
 svg .cw1 { fill: var(--pg-fill); font-weight: 600; opacity: 0.85; }

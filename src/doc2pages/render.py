@@ -201,6 +201,12 @@ def _image(b: dict) -> str:
 _MM_NODE_CHAR = 7.4   # 13px, bold
 _MM_CENTER_CHAR = 8.4  # 15px, bolder
 
+# The centre label of a mind map: the width it has inside the circle, its normal size and
+# the smallest size it may shrink to. Below that the word is cut instead of drawn too small.
+_MM_CENTER_FIT = 86.0
+_MM_CENTER_SIZE = 15.0
+_MM_CENTER_MIN_SIZE = 9.0
+
 
 def _mm_label(text: str, limit: int) -> str:
     """A label short enough for a pill, cut between words and marked when it was cut."""
@@ -208,6 +214,31 @@ def _mm_label(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return (text[:limit - 1].rsplit(" ", 1)[0] or text[:limit - 1]) + "…"
+
+
+def _mm_center_lines(text: str) -> tuple[list[str], float]:
+    """The centre label as one or two lines, with the font size that keeps it in the circle.
+
+    A long compound is the normal case here, so the label is broken at its most even space
+    first and only shrunk afterwards. The size goes out as an inline style, because a class
+    rule in the stylesheet would beat a presentation attribute.
+    """
+    whole = " ".join(str(text or "").split())
+    lines = [whole]
+    if " " in whole:
+        spaces = [i for i, sign in enumerate(whole) if sign == " "]
+        at = min(spaces, key=lambda i: max(i, len(whole) - i - 1))
+        lines = [whole[:at], whole[at + 1:]]
+    size = _MM_CENTER_SIZE
+    longest = max((len(line) for line in lines), default=1)
+    room = _MM_CENTER_FIT / max(longest * _MM_CENTER_CHAR, 1) * _MM_CENTER_SIZE
+    if room < size:
+        size = max(room, _MM_CENTER_MIN_SIZE)
+    if room < _MM_CENTER_MIN_SIZE:
+        # One word wider than the circle: it is cut, the rest of the label still fits.
+        fits = int(_MM_CENTER_FIT / (_MM_CENTER_CHAR * _MM_CENTER_MIN_SIZE / _MM_CENTER_SIZE))
+        lines = [_mm_label(line, fits) for line in lines]
+    return lines, size
 
 
 def _mindmap(b: dict) -> str:
@@ -227,16 +258,21 @@ def _mindmap(b: dict) -> str:
         x, y = cx + rx * math.cos(angle), cy + ry * math.sin(angle)
         parts.append(f'<path class="mm-edge" d="M{cx:.1f},{cy:.1f} Q{(cx + x) / 2:.1f},{y:.1f} '
                      f'{x:.1f},{y:.1f}" stroke-width="2"/>')
-        parts.append(f'<rect class="mm-node" x="{x - half:.1f}" y="{y - 16:.1f}" '
-                     f'width="{2 * half:.1f}" height="32" rx="10" stroke-width="2"/>')
-        parts.append(f'<text class="mm-node-text" x="{x:.1f}" y="{y + 5:.1f}" '
-                     f'text-anchor="middle">{esc(label)}</text>')
-    center = _mm_label(b["center"], 18)
-    # The circle keeps its size, the label shrinks until it fits inside it.
-    size = min(15.0, 86.0 / max(len(center) * _MM_CENTER_CHAR, 1) * 15.0)
+        pill = (f'<rect class="mm-node" x="{x - half:.1f}" y="{y - 16:.1f}" '
+                f'width="{2 * half:.1f}" height="32" rx="10" stroke-width="2"/>'
+                f'<text class="mm-node-text" x="{x:.1f}" y="{y + 5:.1f}" '
+                f'text-anchor="middle">{esc(label)}</text>')
+        # A branch knows its section, so the pill jumps to it.
+        to = branches[i].get("to")
+        parts.append(f'<a href="#{esc(to)}">{pill}</a>' if to else pill)
+    # The circle keeps its size, the label is broken and shrunk until it fits inside it.
+    lines, size = _mm_center_lines(b["center"])
+    step = size * 1.15
+    first = cy + size / 3 - (len(lines) - 1) * step / 2
     parts.append(f'<circle class="mm-center" cx="{cx:.1f}" cy="{cy:.1f}" r="54"/>')
-    parts.append(f'<text class="mm-center-text" x="{cx:.1f}" y="{cy + size / 3:.1f}" '
-                 f'font-size="{size:.1f}px" text-anchor="middle">{esc(center)}</text>')
+    for i, line in enumerate(lines):
+        parts.append(f'<text class="mm-center-text" x="{cx:.1f}" y="{first + i * step:.1f}" '
+                     f'style="font-size:{size:.1f}px" text-anchor="middle">{esc(line)}</text>')
     listed = "".join(f'<li><b>{esc(br["title"])}</b>'
                      + (f'<span>{esc(", ".join(br["leaves"]))}</span>' if br.get("leaves") else "")
                      + "</li>" for br in branches)
@@ -245,29 +281,43 @@ def _mindmap(b: dict) -> str:
             f'<ul class="mm-list">{listed}</ul>{_caption(b)}</figure>')
 
 
+# The width of one word cloud character at one point of font size.
+_CW_CHAR = 0.58
+# The room a word keeps around itself.
+_CW_GAP = 24
+
+
+def _cw_size(word: str, weight: int, high: int, width: int) -> float:
+    """The font size of one word, shrunk when the word alone is wider than the box.
+
+    A long compound at the top weight would otherwise run out of the picture on both
+    sides, because a row that holds one single word can never be broken.
+    """
+    size = 16 + 26 * (weight / high)
+    room = (width - _CW_GAP) / max(len(word) * _CW_CHAR, 1)
+    return min(size, room)
+
+
 def _wordcloud(b: dict) -> str:
     words = b["words"]
     high = max(n for _, n in words) or 1
     width, line_height = 760, 46
-    rows: list[list[tuple[str, int]]] = [[]]
+    sized = [(word, n, _cw_size(word, n, high, width)) for word, n in words]
+    sized = [(word, n, size, len(word) * size * _CW_CHAR + _CW_GAP) for word, n, size in sized]
+    rows: list[list[tuple]] = [[]]
     used = 0.0
-    for word, n in words:
-        size = 16 + 26 * (n / high)
-        room = len(word) * size * 0.58 + 24
-        if used + room > width and rows[-1]:
+    for entry in sized:
+        if used + entry[3] > width and rows[-1]:
             rows.append([])
             used = 0.0
-        rows[-1].append((word, n))
-        used += room
+        rows[-1].append(entry)
+        used += entry[3]
     parts = []
     for r, row in enumerate(rows):
-        total = sum(len(w) * (16 + 26 * (n / high)) * 0.58 + 24 for w, n in row)
-        x = (width - total) / 2
+        x = (width - sum(e[3] for e in row)) / 2
         y = (r + 1) * line_height
-        for word, n in row:
-            size = 16 + 26 * (n / high)
+        for word, n, size, room in row:
             rank = 0 if n >= high * 0.7 else 1 if n >= high * 0.4 else 2
-            room = len(word) * size * 0.58 + 24
             parts.append(f'<text class="cw cw{rank}" x="{x + room / 2:.1f}" y="{y:.1f}" '
                          f'font-size="{size:.1f}" text-anchor="middle">{esc(word)}</text>')
             x += room
@@ -277,12 +327,15 @@ def _wordcloud(b: dict) -> str:
 
 
 def _quote(b: dict) -> str:
-    body = esc(b["text"])
-    key = b.get("keyword")
-    if key:
-        marked = esc(key)
-        body = body.replace(marked, f"<b>{marked}</b>", 1)
-    return f'<blockquote class="quote">{body}</blockquote>'
+    text = b["text"]
+    key = b.get("keyword") or ""
+    # The keyword is looked for in the raw text. In the escaped text it would also match
+    # inside an entity, and "amp" would then mark the middle of an "&" instead of the word.
+    at = text.find(key) if key else -1
+    if at < 0:
+        return f'<blockquote class="quote">{esc(text)}</blockquote>'
+    return (f'<blockquote class="quote">{esc(text[:at])}<b>{esc(key)}</b>'
+            f"{esc(text[at + len(key):])}</blockquote>")
 
 
 def _checklist(b: dict) -> str:
@@ -324,9 +377,15 @@ def _levels(b: dict) -> str:
     return f'<figure><ol class="levels">{items}</ol>{_caption(b)}</figure>'
 
 
+def _pin_shift(pos: float) -> int:
+    """How far a pin's label is pulled left, so a label at either end stays in the panel."""
+    return max(0, min(100, round(pos * 100)))
+
+
 def _scale(b: dict) -> str:
     pins = "".join(f'<span class="pin" style="left:{x["pos"] * 100:.1f}%">'
-                   f'<span>{esc(x["label"])}</span></span>' for x in b["items"])
+                   f'<span style="transform:translateX(-{_pin_shift(x["pos"])}%)">'
+                   f"{esc(x['label'])}</span></span>" for x in b["items"])
     return (f'<figure><div class="panel scale"><div class="rail">{pins}</div>'
             f'<div class="poles"><span>{esc(b["left"])}</span><span>{esc(b["right"])}</span></div>'
             f"</div>{_caption(b)}</figure>")
