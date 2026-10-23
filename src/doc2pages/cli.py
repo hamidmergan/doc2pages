@@ -111,7 +111,8 @@ def _serve(args) -> int:
 
         from .web.app import serve
     except ImportError:
-        print("The web UI needs the extra dependencies: pip install 'doc2pages[ui]'",
+        print("The web UI needs the extra dependencies: pip install "
+              "'doc2pages[ui] @ git+https://github.com/hamidmergan/doc2pages.git'",
               file=sys.stderr)
         return 2
     serve(host=args.host, port=args.port,

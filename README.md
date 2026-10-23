@@ -27,11 +27,19 @@ machine or data center.
 
 ## Installation
 
+doc2pages is installed from GitHub:
+
 ```bash
-pip install doc2pages
+pip install git+https://github.com/hamidmergan/doc2pages.git
 ```
 
-Alternatively, you can install it from the source:
+With the web UI:
+
+```bash
+pip install "doc2pages[ui] @ git+https://github.com/hamidmergan/doc2pages.git"
+```
+
+Alternatively, you can install it from a local copy (`pip install ".[ui]"` for the web UI):
 
 ```bash
 git clone https://github.com/hamidmergan/doc2pages.git
@@ -75,7 +83,7 @@ Errors appear on stderr. The exit code is 1 when the run failed.
 ### Web UI
 
 ```bash
-pip install "doc2pages[ui]"
+pip install "doc2pages[ui] @ git+https://github.com/hamidmergan/doc2pages.git"
 doc2pages serve
 ```
 
