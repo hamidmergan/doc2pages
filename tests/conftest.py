@@ -194,3 +194,123 @@ def material(tmp_path):
     path = tmp_path / "regression.txt"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+# --- Real documents, so the readers and the layout run in the suite ---------------------
+
+def make_pdf(pages: list[list[tuple[int, int, str]]], width: int = 595,
+             height: int = 842) -> bytes:
+    """A PDF with a text layer, every line placed where it is asked for."""
+    font = "/Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
+    objects: list = ["<</Type/Catalog/Pages 2 0 R>>", "", f"<<{font}>>"]
+    kids = []
+    for i, lines in enumerate(pages):
+        number = 4 + 2 * i
+        kids.append(f"{number} 0 R")
+        drawn = []
+        for x, y, text in lines:
+            safe = text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+            drawn.append(f"BT /F1 11 Tf 1 0 0 1 {x} {y} Tm ({safe}) Tj ET")
+        stream = "\n".join(drawn).encode("cp1252")
+        objects.append(f"<</Type/Page/Parent 2 0 R/MediaBox[0 0 {width} {height}]"
+                       f"/Resources<</Font<</F1 3 0 R>>>>/Contents {number + 1} 0 R>>")
+        objects.append(("stream", f"<</Length {len(stream)}>>".encode(), stream))
+    objects[1] = f"<</Type/Pages/Kids[{' '.join(kids)}]/Count {len(pages)}>>"
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode()
+        if isinstance(body, tuple):
+            out += body[1] + b"\nstream\n" + body[2] + b"\nendstream"
+        else:
+            out += body.encode("cp1252")
+        out += b"\nendobj\n"
+    start = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += f"trailer\n<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{start}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def _lecture_pages(count: int = 5) -> list[list[tuple[int, int, str]]]:
+    """A lecture handout: a running header with a page counter and a footer on every page."""
+    pages = []
+    for n in range(1, count + 1):
+        pages.append([
+            (72, 800, f"Vorlesung Statistik | Seite {n} von {count}"),
+            (72, 740, f"Kapitel {n}: Die Messwerte"),
+            (72, 710, f"Abschnitt {n} erklaert die Steigung {n} und den Achsenabschnitt."),
+            (72, 680, f"Die Gerade {n} entsteht aus den Messwerten, nicht durch Probieren."),
+            (72, 60, "Hochschule fuer Beispiele"),
+        ])
+    return pages
+
+
+@pytest.fixture
+def lecture_pdf(tmp_path):
+    """A five page PDF with a running header, a page counter and a footer."""
+    path = tmp_path / "vorlesung.pdf"
+    path.write_bytes(make_pdf(_lecture_pages()))
+    return path
+
+
+@pytest.fixture
+def lecture_docx(tmp_path):
+    from docx import Document
+
+    path = tmp_path / "vorlesung.docx"
+    doc = Document()
+    doc.add_heading("Lineare Regression", level=1)
+    for n in range(1, 4):
+        doc.add_paragraph(f"Abschnitt {n} erklaert die Steigung und den Achsenabschnitt.")
+    doc.save(str(path))
+    return path
+
+
+@pytest.fixture
+def lecture_pptx(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    path = tmp_path / "vorlesung.pptx"
+    deck = Presentation()
+    blank = deck.slide_layouts[6]
+    for n in range(1, 6):
+        slide = deck.slides.add_slide(blank)
+        box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(3))
+        frame = box.text_frame
+        frame.text = f"Folie {n}: Die Messwerte"
+        frame.add_paragraph().text = f"Die Steigung betraegt {n} und der Achsenabschnitt {n - 1}."
+        # The same line on every slide, that is what the boilerplate check is for.
+        frame.add_paragraph().text = "Hochschule fuer Beispiele"
+    deck.save(str(path))
+    return path
+
+
+@pytest.fixture
+def lecture_srt(tmp_path):
+    path = tmp_path / "vorlesung.srt"
+    blocks = []
+    for n in range(1, 6):
+        start, end = 4 * (n - 1), 4 * n
+        blocks.append(
+            f"{n}\n00:00:{start:02d},000 --> 00:00:{end:02d},000\n"
+            f"Die Steigung betraegt {n} und der Achsenabschnitt {n - 1}.\n")
+    path.write_text("\n".join(blocks), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def lecture_vtt(tmp_path):
+    path = tmp_path / "vorlesung.vtt"
+    blocks = ["WEBVTT", "", "NOTE a note that says nothing about the content", ""]
+    for n in range(1, 6):
+        start, end = 4 * (n - 1), 4 * n
+        blocks.append(f"00:00:{start:02d}.000 --> 00:00:{end:02d}.000")
+        blocks.append(f"Die Gerade {n} entsteht aus den Messwerten.")
+        blocks.append("")
+    path.write_text("\n".join(blocks), encoding="utf-8")
+    return path
