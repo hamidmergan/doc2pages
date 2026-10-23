@@ -1,0 +1,294 @@
+"""The two kinds of call of a page: the blocks of a run of sections, and the frame around them.
+
+The plan comes from the summary pipeline. Here each planned section is turned into blocks
+the frontend draws, the model picks the kind of block that fits the content.
+"""
+
+from __future__ import annotations
+
+from . import instruction
+from .client import Caller, is_provider_refusal
+from .limits import SUMMARY_WRITE_MAX_TOKENS
+from .log import logger
+from .models import GROUND_RULES, Outline, Section
+from .planning import loose_json, strip_thinking
+
+_BLOCKS_GUIDE = """BLOCK KINDS, pick per section what fits its content:
+- text: {"kind":"text","text":"three to six sentences"} running text that explains, every section opens with one.
+- bullets: {"kind":"bullets","items":["statement","statement"]} three to eight separate statements, each one sentence.
+- checklist: {"kind":"checklist","items":["Budget","Termine"]} three to ten short things a document, a plan or a task must contain, each one to four words.
+- quote: {"kind":"quote","text":"one sentence","keyword":"word"} the one sentence the material itself stresses as its core message, at most once on the page. keyword is the one word of that sentence it turns on, written exactly as in the sentence.
+- definitions: {"kind":"definitions","items":[{"term":"term","text":"one sentence"}]} two to eight terms of the field, each with its definition.
+- accordion: {"kind":"accordion","items":[{"title":"name","text":"two or three sentences"}]} three to six things that each need a longer explanation a reader opens one by one.
+- cards: {"kind":"cards","cards":[{"icon":"none","title":"name","text":"one or two sentences"}]} three to six parallel options or kinds standing side by side. icon is none, except where cards stand against each other: check for right, x for wrong, warning for a caveat, idea for a tip.
+- steps: {"kind":"steps","steps":[{"title":"step","text":"one sentence"}]} two to eight steps where the material gives an order. Titles of one to three words.
+- cycle: {"kind":"cycle","center":"name of the cycle","steps":[{"title":"phase","text":"one sentence"}]} three to six phases that repeat in a loop, the last leads back to the first.
+- timeline: {"kind":"timeline","events":[{"date":"1957","title":"event","text":"one sentence"}]} three to eight events with the date or period the material gives, in time order.
+- tree: {"kind":"tree","root":"the whole","branches":[{"title":"part","leaves":["sub-part","sub-part"]}]} a whole split into two to six parts, each with up to five sub-parts, such as a structure or a classification.
+- levels: {"kind":"levels","caption":"what is ranked","items":[{"title":"level","text":"one sentence"}]} three to six levels from top to bottom, such as a hierarchy or levels of importance.
+- versus: {"kind":"versus","tone":"neutral","a":{"title":"A","items":["point"]},"b":{"title":"B","items":["point"]}} two things set against each other, two to six short points per side. tone is good_bad when side a helps and side b harms, else neutral.
+- venn: {"kind":"venn","a":{"title":"A","items":["only A"]},"b":{"title":"B","items":["only B"]},"both":["shared"]} two things with what only each has and what they share. Add "c" the same way for a third.
+- matrix: {"kind":"matrix","x":"axis","y":"axis","cells":[{"pos":"tl","title":"name","text":"one sentence"},{"pos":"tr",...},{"pos":"bl",...},{"pos":"br",...}],"points":[]} a portfolio of four fields spanned by two axes. tl is high y and low x, tr high y and high x, bl low on both, br low y and high x. points places named things the material places, x and y from 0 to 1, else empty.
+- scale: {"kind":"scale","caption":"what is placed","left":"one pole","right":"other pole","items":[{"label":"thing","pos":0.2}]} things placed between two opposite poles, pos from 0 at the left to 1 at the right.
+- mistakes: {"kind":"mistakes","pairs":[{"wrong":"the common mistake","right":"what is correct instead"}]} two to six typical mistakes each with its correction.
+- example: {"kind":"example","title":"what is worked through","situation":"one sentence","steps":["one line per step"],"result":"one sentence"} one worked example of the material with its figures.
+- formula: {"kind":"formula","key":"E = (O + 4M + P) / 6","text":"what it means","parts":[{"sym":"E","text":"expected effort"}],"example":["O = 4, M = 6, P = 14","E = 42 / 6 = 7"]} only for a formula or an equation the material states, never for a term or a rule in words. parts and example only as far as the material gives them.
+- figures: {"kind":"figures","figures":[{"value":"30 Min.","label":"what the number is"}]} two to four key figures with their unit, exactly as the material states them.
+- table: {"kind":"table","caption":"what is compared","header":["","A","B"],"rows":[["attribute","value","value"]]} where several things are compared along the same attributes. At most 6 columns and 12 rows, short cells.
+- chart: {"kind":"chart","chart_type":"bar","caption":"what it shows","x_label":"","y_label":"unit","categories":["a","b","c"],"series":[{"name":"","values":[1,2,3]}]} wherever the material states at least three numbers of the same quantity. line for a development along an ordered axis such as time, bar to compare things, pie for the shares of one whole. At most 10 categories, at most 2 series for line, 1 for bar and pie.
+- bars: {"kind":"bars","max":1,"bars":[{"label":"thing","value":0.62,"text":"one sentence on the value"}]} two to ten things measured on one scale, such as shares. max is the top of the scale, 1 for shares, 100 for percent.
+
+EXAMPLE of two sections:
+{"sections":[{"section_index":2,"map_label":"Vorgehen","lead":"So kommt man von den Punkten zur fertigen Geraden.","blocks":[{"kind":"text","text":"Die Gerade entsteht nicht durch Probieren, sondern in festen Schritten aus den Messwerten. Zuerst wird jedes Wertepaar als Punkt eingetragen, damit man sieht, ob überhaupt ein linearer Zusammenhang besteht. Die Gerade läuft dann immer durch den Schwerpunkt der Punktwolke, weil sich dort die Abweichungen nach oben und unten ausgleichen. Erst danach lässt sich die Steigung berechnen."},{"kind":"steps","steps":[{"title":"Punkte eintragen","text":"Jedes Wertepaar wird ein Punkt."},{"title":"Schwerpunkt bestimmen","text":"Die Mittelwerte von x und y ergeben den Schwerpunkt."},{"title":"Steigung berechnen","text":"Durch den Schwerpunkt ergibt sich b = 3,9."}]}],"keywords":["Steigung","Schwerpunkt"]},{"section_index":3,"map_label":"Grenzen","lead":"Eine Gerade passt nicht auf jeden Zusammenhang.","blocks":[{"kind":"text","text":"Liegen die Punkte auf einer Kurve, liegt die Gerade in der Mitte zu hoch und an den Rändern zu tief. Ein einzelner Ausreißer kann sie stark kippen, weil die Abweichungen quadriert in die Rechnung eingehen. Deshalb gehört vor jede Auswertung ein Blick auf die Punktwolke."}],"keywords":["Ausreißer"]}]}"""
+
+
+def _blocks_system(language: str, count: int) -> str:
+    return (
+        f"You turn passages of teaching material into {count} section(s) of a learning web page "
+        "for students. The page condenses, it never asks questions and holds no quiz.\n"
+        + GROUND_RULES.format(language=language) + "\n"
+        "Rule 8: Running text carries the page, at least half of it is prose. Each section "
+        "opens with a text block of three to six sentences that explains its subject in "
+        "connected sentences, with reasons, consequences and how things relate. Then comes at "
+        "most one further block that shows what the text explains, never one that repeats it. "
+        "Choose that block by its content, the first match wins: at least three numbers of the "
+        "same quantity become a chart, dated events become a timeline, things compared along "
+        "the same attributes become a table, two things set against each other become versus, "
+        "two things with what they share become venn, four fields spanned by two axes become a "
+        "matrix, phases that repeat become a cycle, an order becomes steps, a whole split into "
+        "parts becomes a tree, a ranking from top to bottom becomes levels, things between two "
+        "poles become a scale, typical mistakes become mistakes, a worked example becomes "
+        "example, a formula becomes formula, two to four key numbers become figures, terms "
+        "with their meaning become definitions, things that each need a longer explanation "
+        "become an accordion, what something must contain becomes a checklist, separate "
+        "statements become bullets. cards only where none of these fits, at most once among "
+        "your sections. A section whose subject needs no picture of its own keeps the text "
+        "alone, and no kind of further block fills more than a third of your sections.\n"
+        "Rule 9: Never invent a number, a value in a chart, bars or figures block comes from "
+        "the material as it stands. Place things on a scale or in a matrix only where the "
+        "material places them, and give a date only as the material gives it.\n"
+        "Rule 10: Say every statement once on the whole page. What is listed as already on "
+        "the page is not repeated, and within a section a lead, a text and a list never say "
+        "the same thing twice. A figure belongs to the one section whose scope it concerns.\n"
+        "Rule 11: No Markdown, no asterisks, no headings inside the texts.\n"
+        "Rule 12: lead is one sentence saying what the section is about. map_label names "
+        "the section in one to three words. keywords are two to four technical terms of the "
+        "section, each one to three words, written as they appear in the material.\n"
+        "Rule 13: Write only what belongs under the heading. The other sections are listed so "
+        "you stay off their ground.\n"
+        "Rule 14: Never cite a source. No page, slide, file or document name and no label "
+        "such as SZ12 or TZ3, neither in parentheses nor anywhere else.\n"
+        "Rule 15: Answer with one JSON object and nothing else: "
+        '{"sections":[ one object per section, in the given order ]}.\n\n'
+        + _BLOCKS_GUIDE
+    )
+
+
+def _blocks_user(group: list[Section], indices: list[int], others: list[Section],
+                 material: list[str], names: dict[str, str], instructions: str,
+                 on_page: list[str] | None = None) -> str:
+    foreign = "\n".join(f"- {a.title}: {a.scope}" for a in others) or "- none"
+    already = ("ALREADY ON THE PAGE, never repeat these statements:\n"
+               + "\n".join(f"- {x}" for x in on_page) + "\n\n") if on_page else ""
+    named = ("DOCUMENT NAMES, only where a text speaks of a document itself, never as a source:\n"
+             + "\n".join(f"- {d} = {k}" for d, k in names.items()) + "\n\n") if names else ""
+    parts = [f"=== SECTION section_index {i} ===\nHEADING: {a.title}\nSCOPE: {a.scope}\n"
+             f"MATERIAL:\n{m}" for i, a, m in zip(indices, group, material)]
+    addition = ("\n" + instruction.write_addition(instructions, instruction.MANNER)
+                if instructions.strip() else "")
+    return (f"/no_think\nOther sections of the page, stay off these:\n{foreign}\n\n{already}{named}"
+            "YOUR SECTIONS:\n\n" + "\n\n".join(parts) + addition)
+
+
+def parse_json(raw: str | None) -> dict | None:
+    """The first JSON object in an answer, None when there is none."""
+    data = loose_json(strip_thinking(raw))
+    return data if isinstance(data, dict) else None
+
+
+def _words(value, most: int) -> list[str]:
+    out = []
+    for w in value if isinstance(value, list) else []:
+        s = " ".join(str(w or "").split())
+        if s and len(s) <= 40 and s.casefold() not in (r.casefold() for r in out):
+            out.append(s)
+    return out[:most]
+
+
+async def write_blocks(caller: Caller, *, language: str, group: list[Section],
+                       indices: list[int], others: list[Section], material: list[str],
+                       names: dict[str, str], instructions: str = "",
+                       on_page: list[str] | None = None) -> list[dict | None]:
+    """The blocks of a run of sections, None at every section the answer cannot be matched to."""
+    answer = await caller.create(
+        messages=[
+            {"role": "system", "content": _blocks_system(language, len(group))},
+            {"role": "user", "content": _blocks_user(group, indices, others, material, names,
+                                                     instructions, on_page)},
+        ],
+        # No enforced JSON mode: under it the model often runs on in blank lines to the cap.
+        temperature=0.3, name=f"blocks:{len(group)}:{group[0].title}",
+        max_tokens=SUMMARY_WRITE_MAX_TOKENS,
+    )
+    data = parse_json(answer.choices[0].message.content)
+    entries = (data or {}).get("sections")
+    if not isinstance(entries, list):
+        return [None] * len(indices)
+    by_index = {e.get("section_index"): e for e in entries if isinstance(e, dict)}
+    # By the index the model echoed, by position only when the count is exactly right.
+    if not all(i in by_index for i in indices) and len(entries) == len(indices) \
+            and all(isinstance(e, dict) for e in entries):
+        by_index = dict(zip(indices, entries))
+    out: list[dict | None] = []
+    for i in indices:
+        e = by_index.get(i)
+        if e is None:
+            out.append(None)
+            continue
+        out.append({
+            "lead": " ".join(str(e.get("lead") or "").split()),
+            "map_label": " ".join(str(e.get("map_label") or "").split())[:40],
+            "blocks": e.get("blocks") if isinstance(e.get("blocks"), list) else [],
+            "keywords": _words(e.get("keywords"), 4),
+        })
+    return out
+
+
+DESIGNS = {
+    "chapters": "a subject that builds up step by step, such as a theory, a method or a textbook chapter",
+    "timeline": "events in time or a process that runs in stages, such as history, a procedure or a project",
+    "magazine": "cases, examples, people or a debate, where pictures and stories carry the subject",
+    "guide": "rules, duties, a law, a regulation or instructions a reader looks things up in",
+}
+
+# What a picture prompt must never ask for, the image models paint such things with broken lettering.
+NO_WRITING = (
+    "It shows people, objects or a calm scene and never anything that carries writing: no "
+    "document, page, screen, sign, calendar, clock face, chart, diagram, map, table, label or "
+    "book cover. Write \"a craftsman planing a board in a bright workshop\", never \"a workshop "
+    "with a sign naming the register\" or \"a registration book on a desk\"."
+)
+
+_FRAME_SYSTEM = (
+    "You write the frame of a learning web page whose sections are already planned.\n"
+    + GROUND_RULES + "\n"
+    "Rule 8: lead is one or two sentences under the title that say what the page is about "
+    "and why it matters, under 220 characters.\n"
+    "Rule 9: gist holds the three or four most important statements of the whole material, "
+    "each one sentence with its figures, taken from the opening summary. Never cite a source "
+    "or a label such as SZ12 in them.\n"
+    "Rule 10: formula is a formula or equation the whole material turns on, with a sentence "
+    "on what it means. Leave formula as null when the material has none, a rule in words "
+    "is no formula.\n"
+    "Rule 11: design is the look of the page, pick the one that fits the material best:\n"
+    + "\n".join(f"- {k}: {v}" for k, v in DESIGNS.items()) + "\n"
+    "Rule 12: hero_prompt describes in English the page's one picture, a calm illustration "
+    "at the top that stands for the subject of the whole material, never for one section or "
+    "one detail. A reader who sees only the picture should guess the topic. " + NO_WRITING
+    + " hero_alt describes the picture in {language} in one short sentence.\n"
+    "Rule 13: Answer with one JSON object and nothing else, in this shape: "
+    '{{"lead":"","gist":["",""],"formula":{{"key":"","text":""}},"design":"chapters",'
+    '"hero_prompt":"","hero_alt":""}}'
+)
+
+
+# The frame asked for inside the planning call, the same rules as the frame call of its own.
+FRAME_FIELDS = {
+    "lead": {"type": "string", "description": "One or two sentences under the title, under 220 characters."},
+    "gist": {"type": "array", "items": {"type": "string"},
+             "description": "The three or four most important statements, each one sentence."},
+    "formula": {
+        "type": "object",
+        "properties": {"key": {"type": "string"}, "text": {"type": "string"}},
+        "required": ["key", "text"],
+        "additionalProperties": False,
+        "description": "The formula the whole material turns on, both empty when it has none.",
+    },
+    "design": {"type": "string", "enum": list(DESIGNS)},
+    "hero_prompt": {"type": "string", "description": "The page's one picture, in English."},
+    "hero_alt": {"type": "string", "description": "The picture in one short sentence of the output language."},
+}
+
+FRAME_RULES = (
+    "\nTHE PAGE AROUND THE SECTIONS, filled in the same answer:\n"
+    "- lead is one or two sentences under the title that say what the page is about and why "
+    "it matters, under 220 characters.\n"
+    "- gist holds the three or four most important statements of the whole material, each one "
+    "sentence with its figures. Never cite a source or a label such as SZ12 in them.\n"
+    "- formula is a formula or equation the whole material turns on, with a sentence on what "
+    "it means. Leave key and text empty when the material has none, a rule in words is no "
+    "formula.\n"
+    "- design is the look of the page, pick the one that fits the material best:\n"
+    + "\n".join(f"  {k}: {v}" for k, v in DESIGNS.items()) + "\n"
+    "- hero_prompt describes in English the page's one picture, a calm illustration at the "
+    "top that stands for the subject of the whole material, never for one section or one "
+    "detail. A reader who sees only the picture should guess the topic. " + NO_WRITING + "\n"
+    "- hero_alt describes the picture in the output language in one short sentence.\n"
+)
+
+
+def frame_from_plan(extra: dict) -> dict:
+    """The frame the planning call wrote, {} when it left the frame out."""
+    if not isinstance(extra, dict) or not (str(extra.get("lead") or "").strip() or extra.get("gist")):
+        return {}
+    frame = {k: extra.get(k) for k in FRAME_FIELDS}
+    formula = frame.get("formula")
+    if not isinstance(formula, dict) or not str(formula.get("key") or "").strip():
+        frame["formula"] = None
+    return frame
+
+
+async def write_frame(caller: Caller, *, language: str, plan: Outline,
+                      instructions: str = "") -> dict:
+    """Lead, key statements and the picture wishes of the page, {} when the call failed."""
+    sections = "\n".join(f"{i}. {a.title}: {a.scope}" for i, a in enumerate(plan.sections))
+    addition = ("\n" + instruction.write_addition(instructions, instruction.MANNER)
+                if instructions.strip() else "")
+    try:
+        answer = await caller.create(
+            messages=[
+                {"role": "system", "content": _FRAME_SYSTEM.format(language=language)},
+                {"role": "user", "content": (
+                    f"/no_think\nTITLE: {plan.title}\n\nOPENING SUMMARY:\n{plan.intro}\n\n"
+                    f"SECTIONS (section_index. heading: scope):\n{sections}" + addition)},
+            ],
+            temperature=0.3, name="frame", max_tokens=2_000,
+        )
+    except Exception as e:  # noqa: BLE001 - a page without its frame still has its sections
+        from . import concurrency
+        if concurrency.overloaded(e) or is_provider_refusal(e):
+            raise
+        logger.warning("Frame not written ({})", e)
+        return {}
+    return parse_json(answer.choices[0].message.content) or {}
+
+
+_HERO_SYSTEM = (
+    "You describe the one picture at the top of a learning web page.\n"
+    "Describe in English, in one or two sentences, a calm illustration that stands for the "
+    "subject of the whole page, never for one section or one detail. A reader who sees only "
+    "the picture should guess the topic. " + NO_WRITING + "\n"
+    "Answer with the description only, no quotes, no preamble."
+)
+
+
+async def write_hero_prompt(caller: Caller, *, title: str, lead: str, headings: list[str]) -> str:
+    """A description of the title picture from what the page says, "" when the call failed."""
+    from .translate import create_patiently
+
+    try:
+        # The person waits for the run, so only two short tries.
+        answer = await create_patiently(caller, waits=(2, 5),
+            messages=[
+                {"role": "system", "content": _HERO_SYSTEM},
+                {"role": "user", "content": f"/no_think\nTITLE: {title}\nLEAD: {lead}\nSECTIONS:\n"
+                                            + "\n".join(f"- {h}" for h in headings if h)},
+            ],
+            temperature=0.4, name="hero", max_tokens=300,
+        )
+    except Exception as e:  # noqa: BLE001 - a run without a picture wish still has its page
+        if is_provider_refusal(e):
+            raise
+        logger.warning("Picture wish not written ({})", e)
+        return ""
+    return " ".join(strip_thinking(answer.choices[0].message.content or "").split()).strip('"')

@@ -45,14 +45,16 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
 - Language detection uses `langdetect` with the same sample and thresholds as the original.
 - The Markdown input is cleaned with the same regular expressions as the original, so the
   `markdown` package is not needed.
-- Passage headers shown to the model use `p.` for the page instead of the German `S.`.
+- Source code is copied from the original service with mechanical English renames of
+  identifiers only. Logic, prompts, limits and output formats stay byte for byte, the
+  original tests are carried with the same renames.
 - The model's context window is unknown to the tool. Without `context_tokens` it assumes
   131072 tokens, the same assumption the original makes for an unmeasured model.
 
 ## Checklist
 
 - [x] 0 Scaffold: repo, LICENSE, pyproject, package, tests, CI, PLAN.md, README skeleton
-- [ ] 1 Core: schema, writing, pipeline, text, translate, source reading, config, errors
+- [x] 1 Core: schema, writing, pipeline, text, translate, source reading, config, errors
 - [ ] 2 Output: Markdown, HTML with embedded CSS, images as files, overview index.html
 - [ ] 3 API and CLI: `make_pages`, `doc2pages` with `-o`, `--translate`, `--images`, `--markdown-only`
 - [ ] 4 Tests with a fake server: structure, translation, images, HTML, CLI, configuration
