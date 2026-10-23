@@ -59,7 +59,7 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
 - [x] 3 API and CLI: `make_pages`, `doc2pages` with `-o`, `--translate`, `--images`, `--markdown-only`
 - [x] 4 Tests with a fake server: structure, translation, images, HTML, CLI, configuration
 - [x] 5 README, CHANGELOG 0.1.0, local smoke test with a real model
-- [ ] 6 English sweep, acceptance greps, final commit
+- [x] 6 English sweep, acceptance greps, final commit
 - [ ] 7 Web UI (`doc2pages serve`) and Docker (`Dockerfile`, `docker-compose.yml`)
 
 ## Open

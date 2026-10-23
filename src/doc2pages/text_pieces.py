@@ -117,20 +117,20 @@ def split_spans(text: str, piece_chars: int, overlap: int) -> list[tuple[int, in
         a, b = start + links, ende - rechts
         if b > a:
             spans.append((a, b))
-        naechster = start + (b - a) - overlap
-        if naechster <= start:
+        nxt = start + (b - a) - overlap
+        if nxt <= start:
             break
         # The start is pulled to a word boundary too, otherwise every piece begins mid-word.
-        if not text[naechster - 1].isspace():
-            wortanfang = text.rfind(" ", start, naechster)
-            if wortanfang + 1 > start:
-                naechster = wortanfang + 1
+        if not text[nxt - 1].isspace():
+            word_start = text.rfind(" ", start, nxt)
+            if word_start + 1 > start:
+                nxt = word_start + 1
             else:
                 # Forward only to the end of the piece just built, otherwise a word is lost.
-                vor = text.find(" ", naechster)
-                if vor != -1 and vor + 1 <= start + (b - a):
-                    naechster = vor + 1
-        start = naechster
+                ahead = text.find(" ", nxt)
+                if ahead != -1 and ahead + 1 <= start + (b - a):
+                    nxt = ahead + 1
+        start = nxt
     # Fold tiny remainders in so no header magnets end up on their own.
     return _merge_small_spans(spans, max(1, piece_chars // 10))
 

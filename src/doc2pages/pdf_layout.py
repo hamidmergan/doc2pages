@@ -49,8 +49,8 @@ def _norm(text: str) -> str:
     Without the counter, a footer that differs only in its page number is the same line
     on every page.
     """
-    ohne = _EDGE_COUNTER.sub(" ", text)
-    return " ".join(re.sub(r"[^\w\s]", " ", ohne.lower()).split())
+    without = _EDGE_COUNTER.sub(" ", text)
+    return " ".join(re.sub(r"[^\w\s]", " ", without.lower()).split())
 
 
 def _is_page_number(text: str) -> bool:
