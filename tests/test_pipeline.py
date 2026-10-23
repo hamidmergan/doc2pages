@@ -164,3 +164,25 @@ def test_the_concurrency_setting_limits_the_calls_of_a_run(monkeypatch, server, 
     assert main([str(material), "-o", str(tmp_path / "out"), "--base-url", server.base_url,
                  "--model", "your-model", "--concurrency", "1", "--quiet"]) == 0
     assert asked and set(asked) == {1}
+
+
+def test_the_picture_stage_reports_its_own_progress(server, material):
+    """Without this the browser stands on the last written section for the whole stage."""
+    steps: list[tuple] = []
+    _run(server, material, images=True, on_progress=lambda *a: steps.append(a))
+    images = [s for s in steps if s[0] == "images"]
+    assert images, steps
+    assert images[0] == ("images", 0, images[-1][2])
+    assert images[-1][1] == images[-1][2] >= 1
+
+
+def test_an_endpoint_that_never_answers_says_so(material, tmp_path, capsys):
+    """A model server that is not running must not end in an internal marker."""
+    from doc2pages.cli import main
+
+    code = main([str(material), "-o", str(tmp_path / "out"), "--base-url",
+                 "http://127.0.0.1:9/v1", "--model", "your-model", "--quiet"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "endpoint" in err and "model" in err
+    assert "no outline" not in err

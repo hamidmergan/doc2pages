@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
@@ -45,20 +46,32 @@ def _wishes(page: dict) -> list[dict]:
     return [b for s in page["sections"] for b in s["blocks"] if b["kind"] == "image"]
 
 
-def _draw(settings: Settings, draft: dict) -> dict[str, bytes]:
+def _draw(settings: Settings, draft: dict,
+          on_progress: Callable[[str, int | None, int | None], None] | None = None,
+          ) -> dict[str, bytes]:
     """Every picture the draft names, a failed one is left out instead of standing empty."""
     wishes = _wishes(draft)
     if not wishes:
         return {}
     sizes = {pipeline.HERO_IMAGE: pipeline.HERO_SIZE}
+    # Drawing takes longer than a written section, so the stage reports its own progress.
+    ready, counted = 0, threading.Lock()
+    if on_progress is not None:
+        on_progress("images", 0, len(wishes))
 
     def one(wish: dict) -> tuple[str, bytes] | None:
+        nonlocal ready
         try:
             raw = draw_image(settings, wish["prompt"], sizes.get(wish["src"], pipeline.SECTION_SIZE))
+            out = (wish["src"], webp(raw))
         except Exception as e:  # noqa: BLE001 - a page without a picture is still a page
             logger.warning("Picture {} failed: {}", wish["src"], e)
-            return None
-        return wish["src"], webp(raw)
+            out = None
+        with counted:
+            ready += 1
+            if on_progress is not None:
+                on_progress("images", ready, len(wishes))
+        return out
 
     with ThreadPoolExecutor(max_workers=_IMAGE_WORKERS) as pool:
         done = list(pool.map(one, wishes))
@@ -87,7 +100,7 @@ async def _one_page(settings: Settings, sources: list[Source], *,
     draft = await pipeline.run(caller, sources=sources, store=store, should_stop=should_stop,
                                instructions=settings.instructions,
                                image_style=settings.image_style)
-    images = _draw(settings, draft) if settings.images else {}
+    images = _draw(settings, draft, on_progress) if settings.images else {}
     draft = _without_missing_pictures(draft, set(images))
     page = pipeline.finish(schema.clean_page(draft), today=today)
     out = [Page(data=page, title=_title(page), images=dict(images))]

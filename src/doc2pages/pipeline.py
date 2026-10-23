@@ -415,7 +415,8 @@ async def run(caller: Caller, *, sources: list[Source], store: RunStore,
                           sources=sources, text_map=text_map, store=store,
                           instructions=instructions)
     if not plan.sections:
-        raise NoPlan("no outline")
+        raise NoPlan("The model gave no usable plan for this material. Check that the "
+                     "endpoint answers and that the model name is right.")
     effective = "" if instruction.drops_out(plan.instruction_way) else instructions
 
     frame = store.load_frame()

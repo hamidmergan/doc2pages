@@ -87,6 +87,7 @@ class _FakeCaller:
 
     def __init__(self):
         self.calls = 0
+        self.at_once = 2
 
     async def create(self, **kwargs):
         self.calls += 1

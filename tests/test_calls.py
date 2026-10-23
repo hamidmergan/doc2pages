@@ -9,6 +9,7 @@ from doc2pages import planning as sw
 from doc2pages import translate as tr
 from doc2pages import writing as pw
 from doc2pages import text_map as tm
+from doc2pages.limits import SUMMARY_WRITE_CONCURRENCY
 from doc2pages.models import Outline, Section
 from doc2pages.source_reading import from_text
 
@@ -57,7 +58,7 @@ def _run(plan, monkeypatch, answers, prose=None):
     monkeypatch.setattr(pl.planning, "write_sections", write_sections)
     text_map = tm.TextMap([from_text("a.txt", _TEXT)])
     store = _Store()
-    caller = SimpleNamespace(window_tokens=0)
+    caller = SimpleNamespace(window_tokens=0, at_once=SUMMARY_WRITE_CONCURRENCY)
     done = asyncio.run(pl._blocks(caller, language="German", plan=plan, text_map=text_map,
                                   store=store, should_stop=None, instructions=""))
     return done, calls
@@ -140,7 +141,8 @@ def test_forgotten_texts_go_again_together(monkeypatch):
     page = {"lang": "de", "sections": [{"id": f"s{i}", "title": f"Titel {i}", "lead": "", "blocks": [
         {"kind": "text", "text": f"Text {i}"}]} for i in range(6)]}
     monkeypatch.setattr(tr.schema, "clean_page", lambda p: p)
-    fresh = asyncio.run(tr.translate(None, page, "en"))
+    caller = SimpleNamespace(at_once=SUMMARY_WRITE_CONCURRENCY)
+    fresh = asyncio.run(tr.translate(caller, page, "en"))
     assert len(asked) == 2
     assert all(s["title"] == "übersetzt" for s in fresh["sections"])
 
