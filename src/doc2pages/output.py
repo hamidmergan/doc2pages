@@ -44,8 +44,26 @@ class Page:
         return page_html(self.data, title=self.title)
 
 
+# The pictures of a page, so a second run leaves no picture of the first one behind.
+_PICTURE_FILE = re.compile(r"^img_\d+\.webp$")
+
+
+def _clear_own_files(folder: Path) -> None:
+    """Removes the files of an earlier page, so no old picture outlives its page.
+
+    Only the names this module writes itself are touched. Anything else a user put into
+    the folder stays where it is.
+    """
+    own = {INDEX_FILE, MARKDOWN_FILE, DATA_FILE}
+    for path in folder.iterdir():
+        if path.is_file() and (path.name in own or _PICTURE_FILE.match(path.name)):
+            path.unlink()
+
+
 def write_page(page: Page, folder: Path, *, markdown_only: bool = False) -> Path:
     """One page into its own folder, the pictures as files next to the page."""
+    if folder.is_dir():
+        _clear_own_files(folder)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / MARKDOWN_FILE).write_text(page.markdown, encoding="utf-8")
     (folder / DATA_FILE).write_text(json.dumps(page.data, ensure_ascii=False, indent=2),

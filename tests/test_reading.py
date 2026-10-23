@@ -153,3 +153,13 @@ def test_markdown_loses_its_markup_and_keeps_its_words():
     assert "print(1)" not in out and "Code" not in out
     assert "bild.png" not in out
     assert out.endswith("Letzter Satz.")
+
+
+def test_markdown_in_an_older_encoding_is_read_and_not_refused(tmp_path):
+    """The other text readers replace a broken sign, Markdown now does the same."""
+    path = tmp_path / "kapitel.md"
+    path.write_bytes("# Kapitel\n\nDie Gerade entsteht aus den Messwerten.\n"
+                     .encode("latin-1") + "Ausreißer kippen sie.\n".encode("latin-1"))
+    source = read_file(path)
+    assert "Die Gerade entsteht aus den Messwerten." in source.text
+    assert source.text.startswith("Kapitel")

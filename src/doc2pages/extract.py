@@ -25,7 +25,9 @@ def _as_stream(src: Source):
 
 
 def extract_text_md(content: Source) -> str:
-    text = _as_bytes(content).decode("utf-8")
+    # Replacing, like the other text readers: a file in an older encoding is still read
+    # with a few broken signs instead of being refused as unreadable.
+    text = _as_bytes(content).decode("utf-8", errors="replace")
     # Remove code blocks
     text = re.sub(r"```[\s\S]*?```", "", text)
     text = re.sub(r"`[^`]+`", "", text)

@@ -170,3 +170,21 @@ def test_the_html_is_well_formed():
     reader.feed(page_html(_page_with_all_blocks()))
     assert reader.bad == []
     assert reader.open == []
+
+
+def test_a_second_run_into_the_same_folder_leaves_no_old_picture_behind(tmp_path: Path):
+    """A page with fewer pictures than the run before must not show the old ones."""
+    first = Page(data=_page_with_all_blocks(), title="Lineare Regression",
+                 images={"img_0.webp": b"old", "img_1.webp": b"older"})
+    folder = write_pages([first], tmp_path)[0]
+    own_note = folder / "notes.txt"
+    own_note.write_text("a file of my own", encoding="utf-8")
+
+    second = Page(data=_page_with_all_blocks(), title="Lineare Regression",
+                  images={"img_0.webp": b"new"})
+    again = write_pages([second], tmp_path)[0]
+    assert again == folder
+    assert (folder / "img_0.webp").read_bytes() == b"new"
+    assert not (folder / "img_1.webp").exists()
+    # Nothing else in the folder is touched.
+    assert own_note.read_text(encoding="utf-8") == "a file of my own"

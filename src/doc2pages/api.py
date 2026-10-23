@@ -107,7 +107,11 @@ async def _one_page(settings: Settings, sources: list[Source], *,
     target = settings.translate_to
     if target:
         if target == page.get("lang"):
+            # A page is written in one language and translated into the other one. Asking
+            # for the language it already has can only mean the other one.
             target = other_language(page)
+            logger.info("The page is already in {}, it is translated into {} instead",
+                        settings.translate_to, target)
         second = await translate(caller, page, target)
         second = pipeline.finish(second, today=today)
         out.append(Page(data=second, title=_title(second), images=dict(images)))

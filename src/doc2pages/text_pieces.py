@@ -1,14 +1,10 @@
 """Text into pieces of a fixed size, and the cleaning every piece goes through.
 
-Nothing here knows about documents, tools or the assistant. It takes text and
-returns text, which is why it sits in services and not in a feature.
+Nothing here knows about documents or pages. It takes text and returns text.
 """
 
 import re
 import unicodedata
-
-
-
 
 # Puts standalone accents from LaTeX PDFs back on their letter.
 _ACCENT_SCAN_RANGE = range(0x00A0, 0x0300)
@@ -103,18 +99,18 @@ def split_spans(text: str, piece_chars: int, overlap: int) -> list[tuple[int, in
     spans: list[tuple[int, int]] = []
     start = 0
     while start < len(text):
-        ende = min(start + piece_chars, len(text))
-        stueck = text[start:ende]
+        end = min(start + piece_chars, len(text))
+        piece = text[start:end]
         # Break at the last whitespace to avoid cutting a word.
-        if ende < len(text):
-            letzte_luecke = stueck.rfind(" ")
-            if letzte_luecke > piece_chars // 2:
-                stueck = stueck[:letzte_luecke]
-                ende = start + letzte_luecke
+        if end < len(text):
+            last_gap = piece.rfind(" ")
+            if last_gap > piece_chars // 2:
+                piece = piece[:last_gap]
+                end = start + last_gap
         # Stripping moves the boundaries inward, it never drops the piece.
-        links = len(stueck) - len(stueck.lstrip())
-        rechts = len(stueck) - len(stueck.rstrip())
-        a, b = start + links, ende - rechts
+        left = len(piece) - len(piece.lstrip())
+        right = len(piece) - len(piece.rstrip())
+        a, b = start + left, end - right
         if b > a:
             spans.append((a, b))
         nxt = start + (b - a) - overlap

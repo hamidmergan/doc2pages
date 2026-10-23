@@ -135,16 +135,17 @@ def strip_furniture(boxes: list[LineBox], keys: set[str]) -> list[LineBox]:
     piece that repeats through the document and stands above or below all the content of
     the page. A bare number is not enough, in a formula it would take its neighbours along.
     """
-    weg = [b for b in boxes if is_boilerplate(b.text, keys)]
-    inhalt = [b.y for b in boxes if b not in weg and len(_norm(b.text)) >= _BOILERPLATE_MIN_CHARS]
-    rand = [w for w in weg if _norm(w.text) in keys
-            and (not inhalt or w.y > max(inhalt) or w.y < min(inhalt))]
+    dropped = [b for b in boxes if is_boilerplate(b.text, keys)]
+    content = [b.y for b in boxes
+               if b not in dropped and len(_norm(b.text)) >= _BOILERPLATE_MIN_CHARS]
+    edge = [w for w in dropped if _norm(w.text) in keys
+            and (not content or w.y > max(content) or w.y < min(content))]
 
-    def rest(b: LineBox) -> bool:
+    def leftover(b: LineBox) -> bool:
         return (len(_norm(b.text)) < _BOILERPLATE_MIN_CHARS
-                and any(abs(b.y - w.y) <= _FURNITURE_ROW for w in rand))
+                and any(abs(b.y - w.y) <= _FURNITURE_ROW for w in edge))
 
-    return [b for b in boxes if b not in weg and not rest(b)]
+    return [b for b in boxes if b not in dropped and not leftover(b)]
 
 
 def strip_boilerplate_text(text: str, keys: set[str]) -> str:
