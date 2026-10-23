@@ -93,8 +93,11 @@ DOC2PAGES_BASE_URL=http://localhost:11434/v1 DOC2PAGES_MODEL=your-model doc2page
 
 The page is in English and German and switches with the two buttons in the header. It listens
 on this computer only. With `--host 0.0.0.0` it is reachable from your network, but it has no
-login, so do not expose it to the internet. Uploads and results live in a temporary folder and
-go away when the server stops.
+login, so do not expose it to the internet. The server only answers requests whose `Host`
+header is `localhost`, `127.0.0.1`, `::1` or the address it was started with. Behind a proxy
+that rewrites the header, name the hosts yourself with `--allowed-hosts example.org`, or pass
+`--allowed-hosts '*'` to accept any. Uploads and results live in a temporary folder and go
+away when the server stops.
 
 ### Docker
 
@@ -103,6 +106,9 @@ The image runs the web UI on port 8000:
 ```bash
 docker compose up
 ```
+
+The port is published on `127.0.0.1` only, so the container is reachable from this computer
+and not from your network. Set `DOC2PAGES_PORT` to use another port on the host.
 
 Or without compose:
 
@@ -164,7 +170,7 @@ Order: argument, then environment variable, then default.
 | `image_api_key` / `--image-api-key` | `DOC2PAGES_IMAGE_API_KEY` | `api_key` |
 | `language` / `--language` | `DOC2PAGES_LANGUAGE` | the language of the material |
 | `translate_to` / `--translate` | `DOC2PAGES_TRANSLATE_TO` | off |
-| `images` / `--images` | `DOC2PAGES_IMAGES` | off |
+| `images` / `--images`, `--no-images` | `DOC2PAGES_IMAGES` | off |
 | `image_style` / `--image-style` | `DOC2PAGES_IMAGE_STYLE` | a calm editorial style |
 | `instructions` / `--instructions` | `DOC2PAGES_INSTRUCTIONS` | none |
 | `context_tokens` / `--context-tokens` | `DOC2PAGES_CONTEXT_TOKENS` | 131072 assumed |

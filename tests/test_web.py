@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from doc2pages.web.app import STEPS, create_app  # noqa: E402
+from doc2pages.web.app import STEPS, allowed_host_names, create_app  # noqa: E402
 
 
 def wait(client, seconds: float = 60.0) -> dict:
@@ -229,3 +229,27 @@ def test_a_second_browser_sees_the_run_that_is_going_and_its_result(server, mate
         assert done["state"] == "done", done["error"]
         assert second.get("/api/page/0").status_code == 200
         assert first.get("/api/status").json()["state"] == "done"
+
+
+def test_the_host_check_stays_on_when_the_server_listens_on_every_interface():
+    """A container publishes a port, the browser still sends a loopback name."""
+    from doc2pages.web.app import allowed_host_names
+
+    names = allowed_host_names("0.0.0.0")
+    assert names is not None
+    assert set(names) >= {"localhost", "127.0.0.1", "::1"}
+    # The address it was started with counts too, and a port is never part of a name.
+    assert "example.org" in allowed_host_names("example.org:8000")
+    # Named hosts replace the default set, "*" switches the check off.
+    assert allowed_host_names("0.0.0.0", ["pages.example.org"]) == ["pages.example.org"]
+    assert allowed_host_names("0.0.0.0", ["*"]) is None
+
+
+def test_a_container_refuses_a_foreign_host_name(material):
+    app = create_app(allowed_hosts=allowed_host_names("0.0.0.0"))
+    with TestClient(app, base_url="http://127.0.0.1") as local:
+        assert local.get("/api/info").status_code == 200
+    with TestClient(app, base_url="http://pages.example.org") as outside:
+        answer = outside.get("/api/info")
+    assert answer.status_code == 400
+    assert "Unknown host" in answer.text

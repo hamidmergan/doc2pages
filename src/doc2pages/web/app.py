@@ -285,13 +285,38 @@ def create_app(settings: Optional[Settings] = None,
     return app
 
 
-def serve(host: str = "127.0.0.1", port: int = 8000,
-          settings: Optional[Settings] = None) -> None:
-    """Starts the web UI. Settings missing here are read from the environment per run."""
+# The names a browser may send in its Host header when nothing else is named.
+LOOPBACK = ("localhost", "127.0.0.1", "::1")
+# What switches the Host check off, for a run behind a proxy that rewrites the header.
+ANY_HOST = "*"
+
+
+def allowed_host_names(host: str, named: Sequence[str] | None = None) -> list[str] | None:
+    """The Host header names the server accepts, None for "any name goes".
+
+    Listening on every interface is not a reason to drop the check. A container is reached
+    through a published port, and the browser still sends localhost or 127.0.0.1 in the
+    header, so the loopback names cover it and a rebinding attempt still gets a 400.
+    """
+    names = [n.strip() for n in (named or ()) if n.strip()]
+    if not names:
+        names = sorted({*LOOPBACK, _hostname(host)})
+    return None if ANY_HOST in names else names
+
+
+def serve(host: str = "127.0.0.1", port: int = 8000, settings: Optional[Settings] = None,
+          allowed_hosts: Optional[Sequence[str]] = None) -> None:
+    """Starts the web UI. Settings missing here are read from the environment per run.
+
+    ``allowed_hosts`` limits the Host header, which is what stops another web page from
+    reaching this server by pointing a name at it. ``["*"]`` switches the check off.
+    """
     import uvicorn
 
     # The Host header is checked without its port, so only names belong in here.
-    hosts = None if host == "0.0.0.0" else {_hostname(host), "localhost", "127.0.0.1"}
+    hosts = allowed_host_names(host, allowed_hosts)
     app = create_app(settings, allowed_hosts=hosts)
+    if _hostname(host) not in LOOPBACK:
+        print("The web UI has no login. Everyone who reaches this address can use it.")
     print(f"doc2pages is listening on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="warning")

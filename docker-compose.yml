@@ -3,7 +3,7 @@ services:
     build: .
     image: doc2pages
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${DOC2PAGES_PORT:-8000}:8000"  # only reachable from this machine
     environment:
       # The chat model that writes the page. Both are required.
       DOC2PAGES_BASE_URL: "${DOC2PAGES_BASE_URL:-http://localhost:11434/v1}"

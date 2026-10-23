@@ -85,3 +85,17 @@ def test_an_unknown_model_ends_with_a_sentence_and_code_one(server, material, tm
     assert code == 1
     err = capsys.readouterr().err
     assert err.startswith("doc2pages: ") and "--model" in err
+
+
+def test_the_flag_can_switch_the_pictures_off_again(monkeypatch, server, material, tmp_path):
+    """DOC2PAGES_IMAGES=1 turns pictures on, --no-images turns them off for this run."""
+    monkeypatch.setenv("DOC2PAGES_IMAGES", "1")
+    code = main([str(material), "-o", str(tmp_path / "out"), "--no-images",
+                     "--base-url", server.base_url, "--model", "your-model", "-q"])
+    assert code == 0
+    assert server.images == []
+
+    code = main([str(material), "-o", str(tmp_path / "with"),
+                     "--base-url", server.base_url, "--model", "your-model", "-q"])
+    assert code == 0
+    assert server.images

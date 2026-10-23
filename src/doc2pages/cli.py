@@ -55,6 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="also write the page in this language")
     page.add_argument("--images", action="store_true",
                       help="draw the title picture with the image model")
+    page.add_argument("--no-images", action="store_true",
+                      help=f"no title picture, even when {ENV_PREFIX}IMAGES is set")
     page.add_argument("--image-style", help="how the pictures should look")
     page.add_argument("--instructions", help="your own instruction for the content")
     page.add_argument("--combine", action="store_true",
@@ -73,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve = parser.add_argument_group("web UI")
     serve.add_argument("--host", default="127.0.0.1", help="address the web UI listens on")
     serve.add_argument("--port", type=int, default=8000, help="port the web UI listens on")
+    serve.add_argument("--allowed-hosts", default="",
+                       help="Host header names the web UI accepts, comma separated "
+                            "(default: localhost, 127.0.0.1, ::1 and --host, '*' accepts any)")
 
     parser.add_argument("-q", "--quiet", action="store_true", help="only report errors")
     return parser
@@ -93,6 +98,13 @@ def _message(e: BaseException) -> str:
     return str(e) or e.__class__.__name__
 
 
+def _images(args) -> bool | None:
+    """Whether the title picture is drawn. None lets the environment decide."""
+    if args.no_images:
+        return False
+    return args.images or None
+
+
 def _serve(args) -> int:
     try:
         import uvicorn  # noqa: F401 - serve() needs it, the hint below beats a traceback
@@ -102,7 +114,8 @@ def _serve(args) -> int:
         print("The web UI needs the extra dependencies: pip install 'doc2pages[ui]'",
               file=sys.stderr)
         return 2
-    serve(host=args.host, port=args.port)
+    serve(host=args.host, port=args.port,
+          allowed_hosts=[h for h in args.allowed_hosts.split(",") if h.strip()] or None)
     return 0
 
 
@@ -125,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
             base_url=args.base_url, model=args.model, api_key=args.api_key,
             image_base_url=args.image_base_url, image_model=args.image_model,
             image_api_key=args.image_api_key, language=args.language,
-            translate_to=args.translate_to, images=args.images or None,
+            translate_to=args.translate_to, images=_images(args),
             image_style=args.image_style, instructions=args.instructions,
             combine=args.combine, markdown_only=args.markdown_only,
             max_files=args.max_files, max_file_mb=args.max_file_mb, max_pages=args.max_pages,
