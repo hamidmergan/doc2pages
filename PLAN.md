@@ -64,9 +64,11 @@ Not in v0.1: the page editor, sharing, collections, workspaces, user accounts, q
 
 ## Open
 
-- The run against a real model could not be made: the test endpoint answers 401 on
-  chat completions, only its model list is open. Everything else was checked against the
-  fake model server.
+- The smoke test with a real model is done: a Markdown chapter and the same chapter as a
+  three page PDF each went through the command line and through the web page, once with
+  `--translate de`, once with `--combine` and once with an instruction. The pages carry the
+  expected frame, the blocks keep to the schema and the HTML parses with no unclosed tag.
+  A title picture could not be tried, the model server has no drawing model.
 - The web UI holds one run at a time and keeps it in memory. A second browser sees the
   same run. That is enough for one person on one machine, which is what the tool is for.
 - The image was built and started, and the page, its files and `/api/info` were checked

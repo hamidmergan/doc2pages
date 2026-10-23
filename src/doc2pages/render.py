@@ -197,28 +197,50 @@ def _image(b: dict) -> str:
             f"{caption}</figure>")
 
 
+# One character of a mind map label, at the font sizes the stylesheet sets for it.
+_MM_NODE_CHAR = 7.4   # 13px, bold
+_MM_CENTER_CHAR = 8.4  # 15px, bolder
+
+
+def _mm_label(text: str, limit: int) -> str:
+    """A label short enough for a pill, cut between words and marked when it was cut."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return (text[:limit - 1].rsplit(" ", 1)[0] or text[:limit - 1]) + "…"
+
+
 def _mindmap(b: dict) -> str:
     branches = b["branches"]
-    width, height = 760, max(260, 70 * len(branches))
+    labels = [_mm_label(br["title"], 28) for br in branches]
+    # Every pill is as wide as its own label, so no title is cut off by its box.
+    halves = [min(124.0, max(70.0, len(s) * _MM_NODE_CHAR / 2 + 14)) for s in labels]
+    width = 760
+    wide = max(halves)
+    rx = width / 2 - wide - 8
+    ry = max(120.0, 34.0 * len(branches))
+    height = 2 * (ry + 30)
     cx, cy = width / 2, height / 2
-    radius = min(cx, cy) - 70
     parts = []
-    for i, br in enumerate(branches):
+    for i, (label, half) in enumerate(zip(labels, halves)):
         angle = 2 * math.pi * i / len(branches) - math.pi / 2
-        x, y = cx + radius * math.cos(angle), cy + radius * math.sin(angle)
+        x, y = cx + rx * math.cos(angle), cy + ry * math.sin(angle)
         parts.append(f'<path class="mm-edge" d="M{cx:.1f},{cy:.1f} Q{(cx + x) / 2:.1f},{y:.1f} '
                      f'{x:.1f},{y:.1f}" stroke-width="2"/>')
-        parts.append(f'<rect class="mm-node" x="{x - 70:.1f}" y="{y - 16:.1f}" width="140" '
-                     f'height="32" rx="10" stroke-width="2"/>')
+        parts.append(f'<rect class="mm-node" x="{x - half:.1f}" y="{y - 16:.1f}" '
+                     f'width="{2 * half:.1f}" height="32" rx="10" stroke-width="2"/>')
         parts.append(f'<text class="mm-node-text" x="{x:.1f}" y="{y + 5:.1f}" '
-                     f'text-anchor="middle">{esc(br["title"][:20])}</text>')
+                     f'text-anchor="middle">{esc(label)}</text>')
+    center = _mm_label(b["center"], 18)
+    # The circle keeps its size, the label shrinks until it fits inside it.
+    size = min(15.0, 86.0 / max(len(center) * _MM_CENTER_CHAR, 1) * 15.0)
     parts.append(f'<circle class="mm-center" cx="{cx:.1f}" cy="{cy:.1f}" r="54"/>')
-    parts.append(f'<text class="mm-center-text" x="{cx:.1f}" y="{cy + 5:.1f}" '
-                 f'text-anchor="middle">{esc(b["center"][:16])}</text>')
+    parts.append(f'<text class="mm-center-text" x="{cx:.1f}" y="{cy + size / 3:.1f}" '
+                 f'font-size="{size:.1f}px" text-anchor="middle">{esc(center)}</text>')
     listed = "".join(f'<li><b>{esc(br["title"])}</b>'
                      + (f'<span>{esc(", ".join(br["leaves"]))}</span>' if br.get("leaves") else "")
                      + "</li>" for br in branches)
-    svg = f'<svg viewBox="0 0 {width} {height}" role="img">{"".join(parts)}</svg>'
+    svg = f'<svg viewBox="0 0 {width} {height:.0f}" role="img">{"".join(parts)}</svg>'
     return (f'<figure><div class="panel">{svg}</div>'
             f'<ul class="mm-list">{listed}</ul>{_caption(b)}</figure>')
 

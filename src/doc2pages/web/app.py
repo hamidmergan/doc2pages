@@ -161,6 +161,8 @@ def create_app(settings: Optional[Settings] = None,
             "images": bool(s.images) if s else False,
             "image_style": s.image_style if s else "",
             "instructions": s.instructions if s else "",
+            # What is already uploaded, so a reloaded page finds its files again.
+            "files": [p.name for p in files],
             # Without a model in the environment the page asks for one.
             "configured": s is not None,
         }

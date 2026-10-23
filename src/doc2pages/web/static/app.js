@@ -306,8 +306,20 @@ async function start() {
     $("images").checked = Boolean(state.info.images);
     $("imageStyle").value = state.info.image_style || "";
     $("instructions").value = state.info.instructions || "";
+    state.files = state.info.files || [];
   }
   paint();
+  // A page that was reloaded while a run was going picks it up again.
+  try {
+    const status = await ask("/api/status");
+    if (status.state === "running") {
+      $("submit").disabled = true;
+      $("status").textContent = stepText(status);
+      state.timer = window.setInterval(poll, 1500);
+    } else if (status.state === "done" && status.pages.length) {
+      showPages(status.pages);
+    }
+  } catch (e) { /* the server answers once it is ready */ }
 }
 
 start();

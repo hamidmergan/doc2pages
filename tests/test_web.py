@@ -74,7 +74,10 @@ def test_upload_lists_the_files_and_clear_empties_the_list(client, material):
                          files={"files": (material.name, material.read_bytes(), "text/plain")})
     assert answer.status_code == 200
     assert answer.json()["files"] == [material.name]
+    # A reloaded page finds the files again through the info.
+    assert client.get("/api/info").json()["files"] == [material.name]
     assert client.post("/api/clear").json()["files"] == []
+    assert client.get("/api/info").json()["files"] == []
 
 
 def test_without_material_a_run_is_refused(client, server):
